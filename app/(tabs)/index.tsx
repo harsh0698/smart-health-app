@@ -1,42 +1,66 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { getDatabase, onValue, ref } from "firebase/database";
+import { useRouter } from "expo-router";
+import { getDatabase, onValue, ref,update } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import app from "../firebase"; // adjust path if needed
+import { requestPermissions, sendAlert } from "../../utils/_notifications";
+import app from "../_firebase";
 
-export default function App() {
+
+export default function Index() {
+  
+  const router = useRouter();
+
   const [bpm, setBpm] = useState(0);
   const [temp, setTemp] = useState(0);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("Waiting");
+  const [fallTriggered, setFallTriggered] = useState(false);
 
   useEffect(() => {
+    requestPermissions();  
     const db = getDatabase(app);
     const dataRef = ref(db, "healthData");
+    
 
-    onValue(dataRef, (snapshot) => {
+    const unsubscribe = onValue(dataRef, (snapshot) => {
       const data = snapshot.val();
+      console.log("Firebase Data:", data);
+
       if (data) {
-        setBpm(data.bpm);
-        setTemp(data.temperature);
-        setStatus(data.status);
+        setBpm(data.bpm ?? 0);
+        setTemp(data.temperature ?? 0);
+        setStatus(data.status ?? "Waiting");
+        if (data.fallDetected) {
+        sendAlert("⚠ Fall Detected", "User may need help!");
+      }
+
+      if (data.sosActive) {
+        sendAlert("🚨 SOS ALERT", "Emergency button pressed!");
+      }
       }
     });
+    
+
+    return () => unsubscribe();
   }, []);
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        
-        {/* HEADER */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Good Morning</Text>
             <Text style={styles.name}>Harsh</Text>
           </View>
-          <Ionicons name="person-circle" size={40} color="#555" />
+
+          <Ionicons
+            name="person-circle"
+            size={40}
+            color="#555"
+            onPress={() => router.push("/profile")}
+          />
         </View>
 
-        {/* HEALTH PULSE CARD */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Health Pulse</Text>
           <Text style={styles.cardText}>
@@ -45,7 +69,6 @@ export default function App() {
           <Text style={styles.update}>Updated: Just now</Text>
         </View>
 
-        {/* YOUR VITALS */}
         <Text style={styles.sectionTitle}>Your Vitals</Text>
 
         <View style={styles.grid}>
@@ -57,15 +80,11 @@ export default function App() {
 
           <View style={styles.vitalCard}>
             <Ionicons name="thermometer" size={24} color="orange" />
-            <Text style={styles.value}>{temp}°C</Text>
+            <Text style={styles.value}>{Number(temp).toFixed(1)}°c</Text>
             <Text style={styles.label}>Temperature</Text>
           </View>
 
-          <View style={styles.vitalCard}>
-            <Ionicons name="pulse" size={24} color="green" />
-            <Text style={styles.value}>97%</Text>
-            <Text style={styles.label}>SpO2</Text>
-          </View>
+          
 
           <View style={styles.vitalCard}>
             <Ionicons name="medkit" size={24} color="blue" />
@@ -73,30 +92,21 @@ export default function App() {
             <Text style={styles.label}>Status</Text>
           </View>
         </View>
-
       </ScrollView>
-
-      {/* BOTTOM NAV */}
-      <View style={styles.nav}>
-        <Ionicons name="home" size={24} color="#4CAF50" />
-        <Ionicons name="trending-up" size={24} color="#aaa" />
-        <Ionicons name="hardware-chip" size={24} color="#aaa" />
-        <Ionicons name="medical" size={24} color="#aaa" />
-        <Ionicons name="people" size={24} color="#aaa" />
-      </View>
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f7fb",
-  },
+    backgroundColor: "#93b2de",
+  }, 
 
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 20,
+    padding: 40,
     alignItems: "center",
   },
 
@@ -167,15 +177,5 @@ const styles = StyleSheet.create({
   label: {
     color: "#666",
     marginTop: 5,
-  },
-
-  nav: {
-    height: 60,
-    backgroundColor: "white",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    borderTopWidth: 0.5,
-    borderColor: "#ddd",
   },
 });
